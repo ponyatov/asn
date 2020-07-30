@@ -245,7 +245,7 @@ if __name__ == '__main__':
             with open(args.file, "r") as f:
                 for line in f:
                     domain = line.strip()
-                    IPPoolASN(args.domain).resolve_ip_ranges()
+                    IPPoolASN(domain).resolve_ip_ranges()
 
     except RuntimeError as e:
         print(e.message)
