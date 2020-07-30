@@ -8,6 +8,7 @@ from ssl import get_server_certificate, socket_error
 from threading import Lock, Thread
 from traceback import format_exc
 
+import argparse
 
 # noinspection SpellCheckingInspection
 ASNDB_FILE_NAME = 'rib.dat'
@@ -103,12 +104,8 @@ class IPPoolASN(IPPool):
         try:
             asndb = pyasn(ASNDB_FILE_NAME)
         except IOError:
-            print('File "%s" is missing. Setup? [y/n]' % ASNDB_FILE_NAME)
-            if str(raw_input()).strip().lower() == 'y':
-                self._install_asndb()
-                asndb = pyasn(ASNDB_FILE_NAME)
-            else:
-                raise RuntimeError('File "%s" not found.' % ASNDB_FILE_NAME)
+            self._install_asndb()
+            asndb = pyasn(ASNDB_FILE_NAME)
 
         try:
             main_ip = gethostbyname(hostname)
@@ -229,23 +226,27 @@ class IPResolverWorker(Thread):
 if __name__ == '__main__':
     setdefaulttimeout(DEFAULT_SOCKET_TIMEOUT)
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--domain', dest='domain', action='store', help='single domain')
+    parser.add_argument('--file', dest='file', action='store', help='list of domains')
+    args = parser.parse_args()
+
     # noinspection PyBroadException
     try:
         makedirs(TMP_DIR_NAME)
 
-        print('Select an option:\n\t[1] Full ASN scan\n\t[2] Specific IPv4 range scan')
-        selected = str(raw_input()).strip()
+        if args.domain and args.file:
+            raise RuntimeError("Specify only one of --domain or --file")
+        if not args.domain and not args.file:
+            raise RuntimeError("Specify --domain or --file")
+        if args.domain:
+            IPPoolASN(args.domain).resolve_ip_ranges()
+        if args.file:
+            with open(args.file, "r") as f:
+                for line in f:
+                    domain = line.strip()
+                    IPPoolASN(args.domain).resolve_ip_ranges()
 
-        if selected == '1':
-            arg = str(raw_input('Please input the host name: ')).strip()
-            cls = IPPoolASN
-        elif selected == '2':
-            arg = str(raw_input('Please input the ip range (like 104.36.195.0/24): ')).strip()
-            cls = IPPool
-        else:
-            raise RuntimeError('Unknown option: "%s".' % selected)
-
-        cls(arg).resolve_ip_ranges()
     except RuntimeError as e:
         print(e.message)
     except SystemExit:
