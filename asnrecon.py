@@ -1,3 +1,5 @@
+## @file
+
 #https://github.com/orlyjamie
 
 from OpenSSL.crypto import FILETYPE_PEM, load_certificate
@@ -8,7 +10,7 @@ from ssl import get_server_certificate, socket_error
 from threading import Lock, Thread
 from traceback import format_exc
 
-import argparse
+# import argparse
 
 # noinspection SpellCheckingInspection
 ASNDB_FILE_NAME = 'rib.dat'
@@ -223,29 +225,120 @@ class IPResolverWorker(Thread):
                             return val
 
 
+## @defgroup parser parser
+## @brief `cmdline` tiny language implementation
+## @{
+
+import sys
+
+## @defgroup lex lexer
+## @ingroup parser
+## @{
+
+import ply.lex as lex
+
+tokens = ['symbol', 'domain', 'file', 'help']
+
+t_ignore = ' \t\r\n'
+
+def t_domain(t):
+    r'--?domain'
+    return t
+
+def t_file(t):
+    r'--?file'
+    return t
+
+def t_help(t):
+    r'--?help'
+    return t
+
+def t_symbol(t):
+    r' [^ \t\r\n]+'
+    return t
+
+def t_ANY_error(t): raise SyntaxError(t)
+
+
+lexer = lex.lex()
+
+## @}
+
+import ply.yacc as yacc
+
+def p_domain(p):
+    ' REPL : domain symbol '
+    print(p[1:])
+    print('IPPoolASN("%s").resolve_ip_ranges()' % p[2])
+
+def p_file(p):
+    ' REPL : file symbol '
+    print(p[1:])
+    print('''
+            with open("%s", "r") as f:
+                for line in f:
+                    domain = line.strip()
+                    IPPoolASN(domain).resolve_ip_ranges()
+    ''' % p[2])
+
+
+## print help page
+def help():
+    print('''
+    $ python3 asnrecon.py -domain <domain>
+    $ python3 asnrecon.py -file domains.txt
+
+Get this help:
+
+    $ python3 asnrecon.py --help
+''')
+
+## run with `--help`
+def p_help_with(p):
+    ' REPL : help '
+    help()
+## run without empty command line
+def p_help_without(p):
+    ' REPL : '
+    help()
+
+def p_error(p): raise SyntaxError(p)
+
+
+parser = yacc.yacc(write_tables=False, debug=False)
+
+
+## command interpreter
+def REPL(src):
+    parser.parse(src)
+
+## @}
+
 if __name__ == '__main__':
     setdefaulttimeout(DEFAULT_SOCKET_TIMEOUT)
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--domain', dest='domain', action='store', help='single domain')
-    parser.add_argument('--file', dest='file', action='store', help='list of domains')
-    args = parser.parse_args()
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument('--domain', dest='domain', action='store', help='single domain')
+    # parser.add_argument('--file', dest='file', action='store', help='list of domains')
+    # args = parser.parse_args()
+
 
     # noinspection PyBroadException
     try:
         makedirs(TMP_DIR_NAME)
+        REPL(' '.join(sys.argv[1:]))
 
-        if args.domain and args.file:
-            raise RuntimeError("Specify only one of --domain or --file")
-        if not args.domain and not args.file:
-            raise RuntimeError("Specify --domain or --file")
-        if args.domain:
-            IPPoolASN(args.domain).resolve_ip_ranges()
-        if args.file:
-            with open(args.file, "r") as f:
-                for line in f:
-                    domain = line.strip()
-                    IPPoolASN(domain).resolve_ip_ranges()
+    #     if args.domain and args.file:
+    #         raise RuntimeError("Specify only one of --domain or --file")
+    #     if not args.domain and not args.file:
+    #         raise RuntimeError("Specify --domain or --file")
+    #     if args.domain:
+    #         IPPoolASN(args.domain).resolve_ip_ranges()
+    #     if args.file:
+    #         with open(args.file, "r") as f:
+    #             for line in f:
+    #                 domain = line.strip()
+    #                 IPPoolASN(domain).resolve_ip_ranges()
 
     except RuntimeError as e:
         print(e.message)
